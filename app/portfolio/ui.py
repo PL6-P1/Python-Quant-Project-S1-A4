@@ -268,9 +268,9 @@ def run_portfolio():
         # Delete empty tickers 
         filled = [t for t in st.session_state.ticker_inputs if t != ""]
         st.session_state.ticker_inputs = filled + [""]  # always 1 room for an aditional ticker
-        # Si le compactage a créé une nouvelle case (ex: on a rempli la dernière), on rerun pour l'afficher
-        if len(st.session_state.ticker_inputs) != old_len:
-            st.rerun()
+        # On prépare un rerun, mais on le fera APRES avoir construit tous les widgets de la sidebar
+        needs_rerun = (len(st.session_state.ticker_inputs) != old_len)
+
 
 
 
@@ -281,10 +281,11 @@ def run_portfolio():
         if len(symbols) < 3:
             st.sidebar.warning("⚠️ Please provide at least 3 tickers for the Quant B module.")
 
-        start = st.date_input("Start Date", value=pd.to_datetime("2020-01-01").date())
-        end = st.date_input("End Date", value=pd.to_datetime("2025-01-01").date())
+        start = st.date_input("Start Date", value=pd.to_datetime("2020-01-01").date(), key="p_start")
+        end = st.date_input("End Date", value=pd.to_datetime("2025-01-01").date(), key="p_end")
 
-        interval = st.selectbox("Interval", ["1d", "1h"], index=0)
+
+        interval = st.selectbox("Interval", ["1d", "1h"], index=0, key="p_interval")
         rf_pct = st.number_input("Annual risk-free rate (%)", min_value=0.0, max_value=20.0, value=4.125, step=0.001, format="%.3f",)
         rf = rf_pct / 100.0
 
@@ -294,6 +295,10 @@ def run_portfolio():
         rebalance_label = st.selectbox("Rebalancing", ["None", "Weekly", "Monthly", "Quarterly"], index=2)
         reb_map = {"None": "None", "Weekly": "W", "Monthly": "M", "Quarterly": "Q"}
         reb = reb_map[rebalance_label]
+
+        if needs_rerun:
+            st.rerun()
+
 
     # Weights UI
     if weight_mode == "Equal Weight":
@@ -341,19 +346,22 @@ def run_portfolio():
         ],
     )
 
+
+
     # --- Load data once (used by all pages)
     prices = None
     w = None
     if len(symbols) >= 1:
         try:
-            prices = get_price_series(symbols, str(start), str(end), interval=interval)
+            prices = get_price_series(tuple(symbols), str(start), str(end), interval=interval)
             prices = prices.dropna(how="all").ffill().dropna(how="all")
         except Exception as e:
             st.error(f"Data Retrieval Error (yfinance): {e}")
 
     if prices is not None and prices.shape[1] >= 1:
         # Keep only columns with enough data
-        valid_cols = [c for c in prices.columns if prices[c].dropna().shape[0] > 20]
+        min_points = 20 if interval == "1d" else 100  # hourly needs more points, but depends on window
+        valid_cols = [c for c in prices.columns if prices[c].dropna().shape[0] >= min_points]
         prices = prices[valid_cols]
         symbols = valid_cols
 
@@ -375,7 +383,8 @@ def run_portfolio():
         st.write("Presentation Of The Portfolio Module: Multi-Assets, Simulation, Correlations, Comparison Assets vs Portfolio.")
 
         if prices is None or w is None or len(symbols) < 3:
-            st.info("Enter At Least 3 Valid Tickers To Display The Analysis.")
+            st.info("Enter at least 3 valid tickers to display the analysis. Also verify that dates and weights are correct. If this error occurs with the 1h interval, try " \
+            "a shorter date range to have enough data points.")
             return
 
         # Portfolio value with rebalancing
