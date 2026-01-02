@@ -41,10 +41,10 @@ def max_drawdown(series: pd.Series) -> float:
 def normalize_weights(symbols: list[str], weights: list[float]) -> pd.Series:
     w = pd.Series(weights, index=symbols, dtype=float)
     if (w < 0).any():
-        raise ValueError("Poids négatifs interdits (pour rester simple).")
+        raise ValueError("Negative weights prohibited")
     s = float(w.sum())
     if s <= 0:
-        raise ValueError("La somme des poids doit être > 0.")
+        raise ValueError("The sum of the weights must be > 0.")
     return w / s
 
 
@@ -69,7 +69,7 @@ def rebalance_portfolio(
     # With periodic rebalancing: reset weights at period boundaries
     rule = {"W": "W-FRI", "M": "M", "Q": "Q"}.get(rebalance, None)
     if rule is None:
-        raise ValueError("Rebalancing inconnu.")
+        raise ValueError("Rebalancing unknown.")
 
     # Create rebalance dates based on returns index
     reb_dates = rets.resample(rule).last().index
@@ -145,22 +145,22 @@ def plot_main(prices: pd.DataFrame, portfolio_value: pd.Series) -> go.Figure:
     norm = (prices / base) * 100.0
 
     for col in norm.columns:
-        fig.add_trace(go.Scatter(x=norm.index, y=norm[col], mode="lines", name=f"{col} (norm 100)"))
+        fig.add_trace(go.Scatter(x=norm.index, y=norm[col], mode="lines", name=f"{col}"))
 
     fig.add_trace(go.Scatter(
         x=portfolio_value.index,
         y=portfolio_value.values,
         mode="lines",
-        name="Portefeuille (valeur cumulée)",
+        name="Portfolio Value",
         line=dict(width=3),
     ))
 
     fig.update_layout(
-        title="Prix des actifs (normalisés) & valeur cumulée du portefeuille",
+        title="Asset Prices (Normalized) & Cumulative Portfolio Value:",
         xaxis_title="Date",
         yaxis_title="Base 100",
-        legend_title="Séries",
-        height=520,
+        legend_title="Series",
+        height=600,
         margin=dict(l=30, r=30, t=60, b=30),
     )
     return fig
@@ -175,7 +175,7 @@ def plot_corr_heatmap(corr: pd.DataFrame) -> go.Figure:
         colorbar=dict(title="Corr"),
     ))
     fig.update_layout(
-        title="Matrice de corrélation (returns)",
+        title="Correlation Matrix (Returns)",
         height=520,
         margin=dict(l=30, r=30, t=60, b=30),
     )
@@ -211,15 +211,15 @@ def plot_frontier(df_mc: pd.DataFrame) -> go.Figure:
         x=df_mc["ann_vol"],
         y=df_mc["ann_return"],
         mode="markers",
-        name="Portefeuilles simulés",
+        name="Simulated Portfolios",
         marker=dict(size=5, opacity=0.6),
         text=[f"Sharpe={s:.2f}" for s in df_mc["sharpe"]],
         hovertemplate="Vol=%{x:.2%}<br>Return=%{y:.2%}<br>%{text}<extra></extra>"
     ))
     fig.update_layout(
         title="Markowitz (Monte-Carlo) : Return vs Volatility",
-        xaxis_title="Volatilité annualisée",
-        yaxis_title="Rendement annualisé",
+        xaxis_title="Annualized Volatility",
+        yaxis_title="Annualized Return",
         height=520,
         margin=dict(l=30, r=30, t=60, b=30),
     )
@@ -230,10 +230,10 @@ def plot_frontier(df_mc: pd.DataFrame) -> go.Figure:
 # UI: Portfolio module
 # -------------------------
 def run_portfolio():
-    st.header("Module Portefeuille (Quant B)")
+    st.header("Portfolio Management & Analysis (Minimum 3 Assets) - Quant B")
 
     # Auto-refresh every 5 minutes (works well with cache ttl=300 too)
-    st.caption("Auto-refresh toutes les 5 minutes (cache data + rafraîchissement UI).")
+    st.caption("Auto-Refresh Every 5 Minutes (Cache Data + UI Refresh).")
     try:
         from streamlit_autorefresh import st_autorefresh
         st_autorefresh(interval=5 * 60 * 1000, key="portfolio_autorefresh")
@@ -243,20 +243,53 @@ def run_portfolio():
 
     # --- Inputs (shared across tabs)
     with st.sidebar:
-        st.subheader("Paramètres")
-        tickers_raw = st.text_input("Tickers (>=3), séparés par virgules", "AAPL, MSFT, META")
-        symbols = [s.strip().upper() for s in tickers_raw.split(",") if s.strip()]
+        st.subheader("Portfolio Parameters")
+        # --- Tickers UI (champs dynamiques) ---
+        MAX_TICKERS = 30
+        DEFAULT_TICKERS = ["V", "MC.PA", "2330.TW"]  # Visa, LVMH, TSMC
+
+        # Init session state (1 fois)
+        if "ticker_inputs" not in st.session_state:
+        # 3 tickers par défaut + 1 case vide
+            st.session_state.ticker_inputs = DEFAULT_TICKERS + [""]
+
+            st.sidebar.caption("Add tickers: a new field appears as soon as you type in the last one.")
+
+        # Affiche les champs existants
+        old_len = len(st.session_state.ticker_inputs)
+        for i in range(len(st.session_state.ticker_inputs)):
+            st.session_state.ticker_inputs[i] = st.sidebar.text_input(
+                f"Ticker {i+1}",
+                value=st.session_state.ticker_inputs[i],
+                key=f"ticker_{i}",
+                placeholder="Ex: AIR.PA"
+            ).strip().upper()
+
+        # Delete empty tickers 
+        filled = [t for t in st.session_state.ticker_inputs if t != ""]
+        st.session_state.ticker_inputs = filled + [""]  # always 1 room for an aditional ticker
+        # Si le compactage a créé une nouvelle case (ex: on a rempli la dernière), on rerun pour l'afficher
+        if len(st.session_state.ticker_inputs) != old_len:
+            st.rerun()
+
+
+
+        # Construire la liste finale des tickers (en supprimant les vides)
+        symbols = [t for t in st.session_state.ticker_inputs if t != ""]
+
 
         if len(symbols) < 3:
-            st.warning("⚠️ Merci de fournir au moins 3 tickers pour le module Quant B.")
+            st.sidebar.warning("⚠️ Please provide at least 3 tickers for the Quant B module.")
 
-        start = st.date_input("Date début", value=pd.to_datetime("2020-01-01").date())
-        end = st.date_input("Date fin", value=pd.to_datetime("2025-01-01").date())
+        start = st.date_input("Start Date", value=pd.to_datetime("2020-01-01").date())
+        end = st.date_input("End Date", value=pd.to_datetime("2025-01-01").date())
 
         interval = st.selectbox("Interval", ["1d", "1h"], index=0)
-        rf = st.number_input("Taux sans risque (annuel, ex 0.02 = 2%)", min_value=0.0, max_value=1.0, value=0.00, step=0.005)
+        rf_pct = st.number_input("Annual risk-free rate (%)", min_value=0.0, max_value=20.0, value=4.125, step=0.001, format="%.3f",)
+        rf = rf_pct / 100.0
 
-        weight_mode = st.radio("Pondération", ["Equal Weight", "Custom Weights"], horizontal=True)
+
+        weight_mode = st.radio("Weighting", ["Equal Weight", "Custom Weights"], horizontal=True)
 
         rebalance_label = st.selectbox("Rebalancing", ["None", "Weekly", "Monthly", "Quarterly"], index=2)
         reb_map = {"None": "None", "Weekly": "W", "Monthly": "M", "Quarterly": "Q"}
@@ -267,21 +300,26 @@ def run_portfolio():
         weights = [1.0] * max(len(symbols), 1)
     
     else:
-        st.sidebar.markdown("**Poids (long-only)**")
+        st.sidebar.markdown("**Weights (Long-Only)**")
         weights = []
-        for s in symbols:
+        for i, s in enumerate(symbols):
             weights.append(
                 st.sidebar.number_input(
-                    f"{s}",
-                min_value=0.0,
-                max_value=1.0,
-                value=0.33,
-                step=0.01
-            )
-        )# Compteur : somme des poids
+                f"{s}",
+                    min_value=0.0,
+                    max_value=1.0,
+                    value=0.33,
+                    step=0.01,
+                    key=f"w_{i}_{s}"   # ✅ unique même si ticker répété
+                )
+            )   
+        
+
+        
+        # Compteur : somme des poids
         total_w = float(sum(weights)) if len(weights) else 0.0
         st.sidebar.markdown("---")
-        st.sidebar.write(f"**Somme des poids : {total_w:.2f}**")
+        st.sidebar.write(f"**Sum Of Weights : {total_w:.2f}**")
 
         # Short message if total_w != 1
         eps = 1e-6
@@ -293,13 +331,13 @@ def run_portfolio():
 
     # --- Navigation
     choice = st.selectbox(
-        "Choisir l’analyse",
+        "Choose Analysis Page",
         [
-            "Vue d’ensemble",
-            "Données & téléchargements",
-            "Rendements & volatilité",
-            "Corrélations",
-            "Optimisation de portefeuille (Markowitz)",
+            "Overview",
+            "Data & Downloads",
+            "Returns & Volatility",
+            "Correlations",
+            "Portfolio Optimization (Markowitz)",
         ],
     )
 
@@ -311,7 +349,7 @@ def run_portfolio():
             prices = get_price_series(symbols, str(start), str(end), interval=interval)
             prices = prices.dropna(how="all").ffill().dropna(how="all")
         except Exception as e:
-            st.error(f"Erreur récupération data (yfinance): {e}")
+            st.error(f"Data Retrieval Error (yfinance): {e}")
 
     if prices is not None and prices.shape[1] >= 1:
         # Keep only columns with enough data
@@ -327,17 +365,17 @@ def run_portfolio():
                 # align custom weights to actual columns
                 w = normalize_weights(symbols, weights[:len(symbols)])
         except Exception as e:
-            st.error(f"Erreur poids: {e}")
+            st.error(f"Error in Weights: {e}")
             w = None
 
     # -------------------------
     # Pages
     # -------------------------
-    if choice == "Vue d’ensemble":
-        st.write("Présentation du module portefeuille : multi-assets, simulation, corrélations, comparaison assets vs portefeuille.")
+    if choice == "Overview":
+        st.write("Presentation Of The Portfolio Module: Multi-Assets, Simulation, Correlations, Comparison Assets vs Portfolio.")
 
         if prices is None or w is None or len(symbols) < 3:
-            st.info("Renseigne au moins 3 tickers valides pour afficher les analyses.")
+            st.info("Enter At Least 3 Valid Tickers To Display The Analysis.")
             return
 
         # Portfolio value with rebalancing
@@ -346,71 +384,70 @@ def run_portfolio():
         div = diversification_indicators(stats["rets"], w)
 
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Rendement annualisé", f"{stats['ann_return']:.2%}")
-        c2.metric("Volatilité annualisée", f"{stats['ann_vol']:.2%}")
+        c1.metric("Annual Return", f"{stats['ann_return']:.2%}")
+        c2.metric("Annual Volatility", f"{stats['ann_vol']:.2%}")
         c3.metric("Sharpe", f"{stats['sharpe']:.2f}")
         c4.metric("Max Drawdown", f"{stats['max_drawdown']:.2%}")
 
         c5, c6 = st.columns(2)
-        c5.metric("Corrélation moyenne (pairwise)", "—" if np.isnan(div["avg_pairwise_corr"]) else f"{div['avg_pairwise_corr']:.2f}")
-        c6.metric("Nb effectif d'actifs (1/sum(w²))", f"{div['effective_n']:.2f}")
+        c5.metric("Average Correlation (Pairwise)", "—" if np.isnan(div["avg_pairwise_corr"]) else f"{div['avg_pairwise_corr']:.2f}")
+        c6.metric("Effective Number of Assets", f"{div['effective_n']:.2f}")
 
         st.plotly_chart(plot_main(prices, port_value), use_container_width=True)
 
-        with st.expander("Poids utilisés"):
-            st.dataframe(w.to_frame("weight"))
+        with st.expander("Portfolio Weights"):
+            st.dataframe(w.to_frame("Weight (%)"))
 
-        st.caption("Le graphe respecte la consigne : courbes des prix (normalisés) + valeur cumulée du portefeuille.")
-
-    elif choice == "Données & téléchargements":
-        st.subheader("Données brutes")
+    elif choice == "Data & Downloads":
+        st.subheader("Raw Data:")
+        st.write("If the simulation dates are wide, not all data is displayed. You can download the full dataset as a CSV file.")
         if prices is None:
-            st.info("Aucune donnée à afficher (tickers/dates).")
+            st.info("No data To Display (Tickers Or Dates Probably Missing).")
             return
 
-        st.write("Aperçu :")
+        st.write("Overview :")
         st.dataframe(prices.tail(30))
 
         st.download_button(
-            "Télécharger CSV",
+            "Download CSV",
             data=prices.to_csv().encode("utf-8"),
             file_name="prices.csv",
             mime="text/csv",
         )
 
-    elif choice == "Rendements & volatilité":
-        st.subheader("Rendements & volatilité")
+    elif choice == "Returns & Volatility":
+        st.subheader("Returns & Volatility")
 
         if prices is None or w is None or len(symbols) < 3:
-            st.info("Renseigne au moins 3 tickers valides.")
+            st.info("Enter At Least 3 Valid Tickers To Display The Analysis.")
             return
 
         rets = compute_returns(prices)
         mean = annualize_return(rets.mean())
         vol = annualize_vol(rets.std())
 
-        st.markdown("### Par actif")
+        st.markdown("### By Asset")
         out = pd.DataFrame({"Ann.Return": mean, "Ann.Vol": vol}).sort_values("Ann.Vol", ascending=False)
         st.dataframe(out.style.format({"Ann.Return": "{:.2%}", "Ann.Vol": "{:.2%}"}))
 
-        st.markdown("### Portefeuille")
+        st.markdown("### Portfolio")
         stats = portfolio_summary(prices, w, rf=rf)
         c1, c2, c3 = st.columns(3)
-        c1.metric("Rendement annualisé", f"{stats['ann_return']:.2%}")
-        c2.metric("Volatilité annualisée", f"{stats['ann_vol']:.2%}")
+        c1.metric("Annual Return", f"{stats['ann_return']:.2%}")
+        c2.metric("Annual Volatility", f"{stats['ann_vol']:.2%}")
         c3.metric("Sharpe", f"{stats['sharpe']:.2f}")
 
         # Equity curve
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=stats["nav"].index, y=stats["nav"].values, mode="lines", name="NAV (base 100)"))
-        fig.update_layout(title="Valeur cumulée (base 100)", height=420, margin=dict(l=30, r=30, t=60, b=30))
+        fig.update_layout(title="Cumulated Value (Base 100)", height=420, margin=dict(l=30, r=30, t=60, b=30))
         st.plotly_chart(fig, use_container_width=True)
 
-    elif choice == "Corrélations":
-        st.subheader("Corrélations")
+    elif choice == "Correlations":
+        st.subheader("Correlations")
 
         if prices is None or len(symbols) < 3:
-            st.info("Renseigne au moins 3 tickers valides.")
+            st.info("Enter At Least 3 Valid Tickers To Display The Analysis.")
             return
 
         rets = compute_returns(prices)
@@ -418,36 +455,36 @@ def run_portfolio():
 
         st.plotly_chart(plot_corr_heatmap(corr), use_container_width=True)
 
-        with st.expander("Table corrélations"):
+        with st.expander("Correlation Table"):
             st.dataframe(corr.style.format("{:.2f}"))
 
-    elif choice == "Optimisation de portefeuille (Markowitz)":
-        st.subheader("Optimisation de portefeuille (Markowitz)")
+    elif choice == "Portfolio Optimization (Markowitz)":
+        st.subheader("Portfolio Optimization (Markowitz)")
 
         if prices is None or len(symbols) < 3:
-            st.info("Renseigne au moins 3 tickers valides.")
+            st.info("Enter At Least 3 Valid Tickers To Display The Analysis.")
             return
 
         rets = compute_returns(prices)
-        n_ports = st.slider("Nombre de portefeuilles simulés", min_value=1000, max_value=20000, value=6000, step=1000)
+        n_ports = st.slider("Number Of Simulated Portfolios", min_value=1000, max_value=20000, value=5000, step=1000)
 
         df_mc = markowitz_monte_carlo(rets, rf=rf, n_portfolios=int(n_ports), seed=42)
         best = df_mc.loc[df_mc["sharpe"].idxmax()]
         minvol = df_mc.loc[df_mc["ann_vol"].idxmin()]
 
         c1, c2, c3 = st.columns(3)
-        c1.metric("Meilleur Sharpe", f"{best['sharpe']:.2f}")
-        c2.metric("Return (best)", f"{best['ann_return']:.2%}")
-        c3.metric("Vol (best)", f"{best['ann_vol']:.2%}")
+        c1.metric("Best Sharpe", f"{best['sharpe']:.2f}")
+        c2.metric("Best Return", f"{best['ann_return']:.2%}")
+        c3.metric("Best Vol", f"{best['ann_vol']:.2%}")
 
         st.plotly_chart(plot_frontier(df_mc), use_container_width=True)
 
-        st.markdown("### Poids (Best Sharpe)")
+        st.markdown("### Weight (Best Sharpe)")
         w_best = best[symbols].astype(float)
         w_best = w_best / w_best.sum()
-        st.dataframe(w_best.to_frame("weight").style.format("{:.2%}"))
+        st.dataframe(w_best.to_frame("Weight (%)").style.format("{:.2%}"))
 
-        st.markdown("### Poids (Min Vol)")
+        st.markdown("### Weight (Min Vol)")
         w_minvol = minvol[symbols].astype(float)
         w_minvol = w_minvol / w_minvol.sum()
-        st.dataframe(w_minvol.to_frame("weight").style.format("{:.2%}"))
+        st.dataframe(w_minvol.to_frame("Weight (%)").style.format("{:.2%}"))
