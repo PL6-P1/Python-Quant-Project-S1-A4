@@ -24,7 +24,7 @@ Modules
 Quant A – Single Asset Analysis
 
 - Analysis of one asset at a time
-- - Implementation of backtesting strategies
+- Implementation of backtesting strategies
 - Performance metrics (returns, drawdown, risk)
 - Interactive strategy parameters
 - Daily report generation via cron
