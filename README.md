@@ -28,6 +28,7 @@ The objectives of this project are to:
 
 ## 3. Repository Structure
 
+```bash
 Python-Quant-Project-S1-A4/
 │
 ├── app/
@@ -42,6 +43,8 @@ Python-Quant-Project-S1-A4/
 ├── requirements.txt             # Project dependencies
 ├── README.md
 └── .venv/                       # Local virtual environment (not tracked)
+
+```
 
 The file `main_app.py` is the global entry point and allows switching between Quant A and Quant B through the Streamlit sidebar.
 
@@ -175,9 +178,20 @@ The final `main` branch contains the fully integrated and validated dashboard.
 ```bash
 git clone https://github.com/PL6-P1/Python-Quant-Project-S1-A4.git
 cd Python-Quant-Project-S1-A4
+```
+
+9.2 Create and activate a virtual environment
+
+```bash
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+.venv\Scripts\activate
+```
+
+9.3 Install dependencies
+
+```bash
 pip install -r requirements.txt
+```
 
 ## 10. Running the Application
 
@@ -185,24 +199,31 @@ From the project root directory, run:
 
 ```bash
 streamlit run app/main_app.py
-If module resolution issues occur, use:
-python -m streamlit run app/main_app.py
+```
 
+If module resolution issues occur, use:
+```bash
+python -m streamlit run app/main_app.py
+```
 The dashboard will open automatically in your default web browser.
 
 ## 11. Dependencies
 
 The project relies on the following Python libraries:
+```bash
+
 streamlit
 yfinance
 pandas
 numpy
 plotly
 streamlit-autorefresh
+```
 All dependencies are listed in the requirements.txt file.
 
 ## 12. Authors
 Quant A – Single Asset Analysis: Kevin PATHMASRI
+
 Quant B – Portfolio Management: Paul LEVET
 
 Each module was developed independently in separate GitHub branches and integrated through pull requests, in strict accordance with the collaboration requirements.
