@@ -1,0 +1,12 @@
+[Unit]
+Description=Quant Dashboard (Streamlit)
+After=network.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/Python-Quant-Project-S1-A4
+ExecStart=/home/ubuntu/Python-Quant-Project-S1-A4/venv/bin/streamlit run app/main_app.py --server.port 8501 --server.address 0.0.0.0
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
