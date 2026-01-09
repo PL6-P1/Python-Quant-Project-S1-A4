@@ -211,8 +211,6 @@ The dashboard will open automatically in your default web browser.
 
 The application is deployed on an Ubuntu Linux virtual machine and runs 24/7 using a systemd service.
 
-### 11.1 systemd service
-
 A template is provided in:
 ```bash
 deploy/quant-dashboard.service
