@@ -1,0 +1,1 @@
+0 20 * * * cd /home/ubuntu/Python-Quant-Project-S1-A4 && /home/ubuntu/Python-Quant-Project-S1-A4/venv/bin/python scripts/daily_report.py --ticker META --interval 1d >> /home/ubuntu/Python-Quant-Project-S1-A4/logs/daily_report.log 2>&1
