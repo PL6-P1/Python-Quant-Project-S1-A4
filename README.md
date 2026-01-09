@@ -207,11 +207,64 @@ python -m streamlit run app/main_app.py
 ```
 The dashboard will open automatically in your default web browser.
 
-## 11. Dependencies
+## 11. Deployment on Linux (AWS EC2)
+
+The application is deployed on an Ubuntu Linux virtual machine and runs 24/7 using a systemd service.
+
+### 11.1 systemd service
+
+A template is provided in:
+```bash
+deploy/quant-dashboard.service
+```
+
+To enable the service on the VM:
+
+```bash
+sudo cp deploy/quant-dashboard.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now quant-dashboard
+sudo systemctl status quant-dashboard
+```
+
+The dashboard is accessible via:
+```bash
+http://<EC2_PUBLIC_IP>:8501
+```
+
+## 12. Daily Report Generation (Cron)
+
+A daily report is generated automatically using cron.
+
+### 12.1 Cron configuration
+
+An example cron entry is provided in:
+```bash
+deploy/crontab.example
+```
+
+Example (daily at 20:00):
+```bash
+0 20 * * * cd /home/ubuntu/Python-Quant-Project-S1-A4 && /home/ubuntu/Python-Quant-Project-S1-A4/venv/bin/python scripts/daily_report.py --ticker META --interval 1d >> logs/daily_report.log 2>&1
+```
+
+### 12.2 Outputs
+
+Reports are stored in:
+```bash
+reports/
+```
+
+Logs are stored in:
+```bash
+logs/daily_report.log
+```
+
+## 13. Dependencies
 
 The project relies on the following Python libraries:
-```bash
 
+```bash
 streamlit
 yfinance
 pandas
@@ -219,11 +272,21 @@ numpy
 plotly
 streamlit-autorefresh
 ```
-All dependencies are listed in the requirements.txt file.
 
-## 12. Authors
-Quant A – Single Asset Analysis: Kevin PATHMASRI
+All dependencies are listed in requirements.txt.
 
-Quant B – Portfolio Management: Paul LEVET
+## 14. Authors and Division of Work
+
+Quant A – Single Asset Analysis: Kevin Pathmasri
+
+Quant B – Portfolio Management: Paul Levet
 
 Each module was developed independently in separate GitHub branches and integrated through pull requests, in strict accordance with the collaboration requirements.
+
+
+
+
+Thank you! If you have any questions: 
+
+kevin.pathmasri@edu.devinci.fr
+paul.levet@edu.devinci.fr
